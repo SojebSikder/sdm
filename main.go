@@ -58,18 +58,40 @@ func main() {
 }
 
 func downloadFile(url, output string, workers int) error {
-	// Get file size
+	// Get file size and check for partial support
 	resp, err := http.Head(url)
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned status code %d", resp.StatusCode)
 	}
 
-	size, err := strconv.Atoi(resp.Header.Get("Content-Length"))
+	sizeStr := resp.Header.Get("Content-Length")
+	if sizeStr == "" {
+		return fmt.Errorf("missing Content-Length header")
+	}
+	size, err := strconv.Atoi(sizeStr)
 	if err != nil {
 		return fmt.Errorf("invalid content length: %v", err)
+	}
+
+	acceptRanges := resp.Header.Get("Accept-Ranges")
+	if acceptRanges != "bytes" {
+		fmt.Println("Server does not support partial downloads, falling back to single thread...")
+		return singleDownload(url, output)
+	}
+
+	// Verify actual partial download support
+	partialSupported, err := verifyPartialSupport(url)
+	if err != nil {
+		return fmt.Errorf("error verifying partial download support: %v", err)
+	}
+	if !partialSupported {
+		fmt.Println("Server claims partial download support but does not behave correctly. Falling back to single thread...")
+		return singleDownload(url, output)
 	}
 
 	fmt.Printf("File size: %d bytes\n", size)
@@ -184,4 +206,57 @@ func downloadPart(client *http.Client, url, output string, start, end int) error
 		}
 	}
 	return nil
+}
+
+func singleDownload(url, output string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned status code %d", resp.StatusCode)
+	}
+
+	file, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	bar = progressbar.NewOptions64(resp.ContentLength,
+		progressbar.OptionSetDescription("Downloading"),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetWidth(40),
+		progressbar.OptionThrottle(100*time.Millisecond),
+		progressbar.OptionShowCount(),
+		progressbar.OptionClearOnFinish(),
+	)
+	defer bar.Close()
+
+	_, err = io.Copy(io.MultiWriter(file, bar), resp.Body)
+	return err
+}
+
+// verifyPartialSupport sends a small Range request and checks server behavior
+func verifyPartialSupport(url string) (bool, error) {
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Range", "bytes=0-1") // Ask for first 2 bytes
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	// Partial content must respond with 206
+	if resp.StatusCode == http.StatusPartialContent {
+		return true, nil
+	}
+	return false, nil
 }
