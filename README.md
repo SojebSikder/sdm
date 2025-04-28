@@ -13,5 +13,9 @@ It downloads faster by downloading chunks parallelly
 
 # Usage
 ```
-sdm download <url>
+sdm download <url> --output <location>
 ```
+
+# Supported commands
+
+- `download` - for downloading file, also support `--output` flag that used to specify the output location

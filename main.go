@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,18 +31,21 @@ func main() {
 	}
 
 	cmd := os.Args[1]
+	args := os.Args
 
 	switch cmd {
 	case "download":
-		url := os.Args[2]
+		url := args[2]
 
 		splitText := strings.Split(url, "/")
 		textLen := len(splitText)
 		fileName := splitText[textLen-1]
 
-		output := fileName
+		fs := flag.NewFlagSet("download", flag.ExitOnError)
+		output := fs.String("output", fileName, "specify output location")
+		fs.Parse(args[3:])
 
-		err := downloadFile(url, output, numWorkers)
+		err := downloadFile(url, *output, numWorkers)
 		if err != nil {
 			fmt.Println("\nDownload failed:", err)
 		} else {
