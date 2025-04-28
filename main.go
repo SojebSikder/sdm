@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	numWorkers   = 8               // Number of parallel downloads
 	maxRetries   = 3               // Max retry attempts per part
 	retryBackoff = 2 * time.Second // Wait time before retry
 )
@@ -45,7 +44,7 @@ func main() {
 		output := fs.String("output", fileName, "specify output location")
 		fs.Parse(args[3:])
 
-		err := downloadFile(url, *output, numWorkers)
+		err := downloadFile(url, *output)
 		if err != nil {
 			fmt.Println("\nDownload failed:", err)
 		} else {
@@ -57,7 +56,7 @@ func main() {
 	}
 }
 
-func downloadFile(url, output string, workers int) error {
+func downloadFile(url, output string) error {
 	// Get file size and check for partial support
 	resp, err := http.Head(url)
 	if err != nil {
@@ -95,6 +94,10 @@ func downloadFile(url, output string, workers int) error {
 	}
 
 	fmt.Printf("File size: %d bytes\n", size)
+
+	// Dynamically calculate workers
+	workers := calculateWorkers(size)
+	fmt.Printf("Using %d workers...\n", workers)
 
 	// Create output file
 	file, err := os.Create(output)
@@ -254,9 +257,27 @@ func verifyPartialSupport(url string) (bool, error) {
 	}
 	defer resp.Body.Close()
 
-	// Partial content must respond with 206
 	if resp.StatusCode == http.StatusPartialContent {
 		return true, nil
 	}
 	return false, nil
+}
+
+// calculateWorkers decides number of workers based on file size
+func calculateWorkers(size int) int {
+	const (
+		MB = 1024 * 1024
+		GB = 1024 * MB
+	)
+
+	switch {
+	case size < 5*MB:
+		return 1
+	case size < 100*MB:
+		return 4
+	case size < 1*GB:
+		return 8
+	default:
+		return 16
+	}
 }
