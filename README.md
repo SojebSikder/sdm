@@ -4,7 +4,7 @@ Fast Internet download manager created using Go.
 It downloads faster by downloading chunks parallelly
 
 # Screenshots
-![screenshot1](./screenshots/Screenshot1.png)
+![screenshot1](./screenshots/screenshot1.png)
 
 # Build
 ```
