@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	maxRetries   = 3               // Max retry attempts per part
-	retryBackoff = 2 * time.Second // Wait time before retry
+	maxRetries   = 3
+	retryBackoff = 2 * time.Second
 )
 
 var (
@@ -49,12 +49,9 @@ func downloadCmd(args []string) {
 	}
 
 	url := args[0]
-
-	// Extract filename from URL
 	urlParts := strings.Split(url, "/")
 	defaultFileName := urlParts[len(urlParts)-1]
 
-	// Flags
 	fs := flag.NewFlagSet("download", flag.ExitOnError)
 	output := fs.String("output", defaultFileName, "specify output location")
 	workersFlag := fs.Int("worker", 0, "override number of workers")
@@ -64,23 +61,30 @@ func downloadCmd(args []string) {
 		*output = filepath.Clean(*output + "\\" + defaultFileName)
 	}
 
-	fmt.Println(*output)
-
-	startTime := time.Now() // capture start time
+	startTime := time.Now()
 
 	err := downloadFile(url, *output, *workersFlag)
 	if err != nil {
 		fmt.Println("\nDownload failed:", err)
 		os.Exit(1)
 	} else {
-		elapsed := time.Since(startTime) // calculate elapsed time
+		elapsed := time.Since(startTime)
+
+		info, err := os.Stat(*output)
+		if err != nil {
+			fmt.Println("Error getting downloaded file size:", err)
+			return
+		}
+		size := info.Size()
+		speed := float64(size) / elapsed.Seconds()
+
 		fmt.Println("\nDownload completed successfully!")
 		fmt.Printf("Downloaded in: %s\n", elapsed.Round(time.Millisecond))
+		fmt.Printf("Average speed: %s/s\n", formatSpeed(speed))
 	}
 }
 
 func downloadFile(url, output string, workersOverride int) error {
-	// Get file size and check for partial support
 	resp, err := http.Head(url)
 	if err != nil {
 		return err
@@ -106,7 +110,6 @@ func downloadFile(url, output string, workersOverride int) error {
 		return singleDownload(url, output)
 	}
 
-	// Verify actual partial download support
 	partialSupported, err := verifyPartialSupport(url)
 	if err != nil {
 		return fmt.Errorf("error verifying partial download support: %v", err)
@@ -124,20 +127,17 @@ func downloadFile(url, output string, workersOverride int) error {
 	}
 	fmt.Printf("Using %d workers...\n", workers)
 
-	// Create output file
 	file, err := os.Create(output)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// Pre-allocate file size
 	err = file.Truncate(int64(size))
 	if err != nil {
 		return err
 	}
 
-	// Setup the progress bar
 	bar = progressbar.NewOptions(size,
 		progressbar.OptionSetDescription("Downloading"),
 		progressbar.OptionShowBytes(true),
@@ -150,9 +150,7 @@ func downloadFile(url, output string, workersOverride int) error {
 
 	client := &http.Client{}
 
-	// Calculate chunks
 	partSize := size / workers
-
 	var wg sync.WaitGroup
 	wg.Add(workers)
 
@@ -160,7 +158,7 @@ func downloadFile(url, output string, workersOverride int) error {
 		start := i * partSize
 		end := start + partSize - 1
 		if i == workers-1 {
-			end = size - 1 // last chunk takes the remainder
+			end = size - 1
 		}
 
 		go func(start, end int) {
@@ -169,7 +167,7 @@ func downloadFile(url, output string, workersOverride int) error {
 			for {
 				err := downloadPart(client, url, output, start, end)
 				if err == nil {
-					break // Success
+					break
 				}
 				retries++
 				if retries > maxRetries {
@@ -216,7 +214,7 @@ func downloadPart(client *http.Client, url, output string, start, end int) error
 		return err
 	}
 
-	buf := make([]byte, 32*1024) // 32 KB buffer
+	buf := make([]byte, 32*1024)
 	for {
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
@@ -224,7 +222,7 @@ func downloadPart(client *http.Client, url, output string, start, end int) error
 			if writeErr != nil {
 				return writeErr
 			}
-			bar.Add(n) // Update the progress bar
+			bar.Add(n)
 		}
 		if err != nil {
 			if err == io.EOF {
@@ -267,14 +265,13 @@ func singleDownload(url, output string) error {
 	return err
 }
 
-// verifyPartialSupport sends a small Range request and checks server behavior
 func verifyPartialSupport(url string) (bool, error) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return false, err
 	}
-	req.Header.Set("Range", "bytes=0-1") // Ask for first 2 bytes
+	req.Header.Set("Range", "bytes=0-1")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -282,13 +279,9 @@ func verifyPartialSupport(url string) (bool, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusPartialContent {
-		return true, nil
-	}
-	return false, nil
+	return resp.StatusCode == http.StatusPartialContent, nil
 }
 
-// calculateWorkers decides number of workers based on file size
 func calculateWorkers(size int) int {
 	const (
 		MB = 1024 * 1024
@@ -304,5 +297,24 @@ func calculateWorkers(size int) int {
 		return 8
 	default:
 		return 16
+	}
+}
+
+func formatSpeed(bps float64) string {
+	const (
+		KB = 1024
+		MB = 1024 * KB
+		GB = 1024 * MB
+	)
+
+	switch {
+	case bps > GB:
+		return fmt.Sprintf("%.2f GB", bps/GB)
+	case bps > MB:
+		return fmt.Sprintf("%.2f MB", bps/MB)
+	case bps > KB:
+		return fmt.Sprintf("%.2f KB", bps/KB)
+	default:
+		return fmt.Sprintf("%.2f B", bps)
 	}
 }
