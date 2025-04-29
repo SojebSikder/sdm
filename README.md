@@ -18,4 +18,7 @@ sdm download <url> --output <location>
 
 # Supported commands
 
-- `download` - for downloading file, also support `--output` flag that used to specify the output location
+- `download` - for downloading file 
+    - (optional) support `--output` flag that used to specify the output location
+    - (optional) `--worker` flag to override the worker count
+

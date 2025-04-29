@@ -30,33 +30,45 @@ func main() {
 	}
 
 	cmd := os.Args[1]
-	args := os.Args
 
 	switch cmd {
 	case "download":
-		url := args[2]
-
-		splitText := strings.Split(url, "/")
-		textLen := len(splitText)
-		fileName := splitText[textLen-1]
-
-		fs := flag.NewFlagSet("download", flag.ExitOnError)
-		output := fs.String("output", fileName, "specify output location")
-		fs.Parse(args[3:])
-
-		err := downloadFile(url, *output)
-		if err != nil {
-			fmt.Println("\nDownload failed:", err)
-		} else {
-			fmt.Println("\nDownload completed successfully!")
-		}
+		downloadCmd(os.Args[2:])
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		fmt.Println("Available commands: download")
+		os.Exit(1)
 	}
 }
 
-func downloadFile(url, output string) error {
+func downloadCmd(args []string) {
+	if len(args) < 1 {
+		fmt.Println("Usage: downloader download <url> [--output file] [--workers n]")
+		os.Exit(1)
+	}
+
+	url := args[0]
+
+	// Extract filename from URL
+	urlParts := strings.Split(url, "/")
+	defaultFileName := urlParts[len(urlParts)-1]
+
+	// Flags
+	fs := flag.NewFlagSet("download", flag.ExitOnError)
+	output := fs.String("output", defaultFileName, "specify output location")
+	workersFlag := fs.Int("worker", 0, "override number of workers")
+	fs.Parse(args[1:])
+
+	err := downloadFile(url, *output, *workersFlag)
+	if err != nil {
+		fmt.Println("\nDownload failed:", err)
+		os.Exit(1)
+	} else {
+		fmt.Println("\nDownload completed successfully!")
+	}
+}
+
+func downloadFile(url, output string, workersOverride int) error {
 	// Get file size and check for partial support
 	resp, err := http.Head(url)
 	if err != nil {
@@ -95,8 +107,10 @@ func downloadFile(url, output string) error {
 
 	fmt.Printf("File size: %d bytes\n", size)
 
-	// Dynamically calculate workers
 	workers := calculateWorkers(size)
+	if workersOverride > 0 {
+		workers = workersOverride
+	}
 	fmt.Printf("Using %d workers...\n", workers)
 
 	// Create output file
