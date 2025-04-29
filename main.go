@@ -59,12 +59,16 @@ func downloadCmd(args []string) {
 	workersFlag := fs.Int("worker", 0, "override number of workers")
 	fs.Parse(args[1:])
 
+	startTime := time.Now() // capture start time
+
 	err := downloadFile(url, *output, *workersFlag)
 	if err != nil {
 		fmt.Println("\nDownload failed:", err)
 		os.Exit(1)
 	} else {
+		elapsed := time.Since(startTime) // calculate elapsed time
 		fmt.Println("\nDownload completed successfully!")
+		fmt.Printf("Downloaded in: %s\n", elapsed.Round(time.Millisecond))
 	}
 }
 
