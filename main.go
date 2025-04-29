@@ -25,7 +25,7 @@ var (
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: downloader download <url>")
+		fmt.Println("Usage: sdm download <url>")
 		os.Exit(1)
 	}
 
@@ -43,7 +43,7 @@ func main() {
 
 func downloadCmd(args []string) {
 	if len(args) < 1 {
-		fmt.Println("Usage: downloader download <url> [--output file] [--worker n]")
+		fmt.Println("Usage: sdm download <url> [--output file] [--worker n]")
 		os.Exit(1)
 	}
 
