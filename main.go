@@ -85,38 +85,36 @@ func downloadCmd(args []string) {
 }
 
 func downloadFile(url, output string, workersOverride int) error {
-	resp, err := http.Head(url)
+	client := &http.Client{}
+
+	// Perform a GET request for bytes 0-0 to detect size and partial support
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Range", "bytes=0-0")
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned status code %d", resp.StatusCode)
-	}
-
-	sizeStr := resp.Header.Get("Content-Length")
-	if sizeStr == "" {
-		return fmt.Errorf("missing Content-Length header")
-	}
-	size, err := strconv.Atoi(sizeStr)
-	if err != nil {
-		return fmt.Errorf("invalid content length: %v", err)
-	}
-
-	acceptRanges := resp.Header.Get("Accept-Ranges")
-	if acceptRanges != "bytes" {
+	if resp.StatusCode != http.StatusPartialContent {
 		fmt.Println("Server does not support partial downloads, falling back to single thread...")
 		return singleDownload(url, output)
 	}
 
-	partialSupported, err := verifyPartialSupport(url)
-	if err != nil {
-		return fmt.Errorf("error verifying partial download support: %v", err)
+	contentRange := resp.Header.Get("Content-Range")
+	if contentRange == "" {
+		return fmt.Errorf("missing Content-Range header")
 	}
-	if !partialSupported {
-		fmt.Println("Server claims partial download support but does not behave correctly. Falling back to single thread...")
-		return singleDownload(url, output)
+	parts := strings.Split(contentRange, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid Content-Range format")
+	}
+	size, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return fmt.Errorf("invalid content length: %v", err)
 	}
 
 	fmt.Printf("File size: %d bytes\n", size)
@@ -147,8 +145,6 @@ func downloadFile(url, output string, workersOverride int) error {
 		progressbar.OptionClearOnFinish(),
 	)
 	defer bar.Close()
-
-	client := &http.Client{}
 
 	partSize := size / workers
 	var wg sync.WaitGroup
@@ -263,23 +259,6 @@ func singleDownload(url, output string) error {
 
 	_, err = io.Copy(io.MultiWriter(file, bar), resp.Body)
 	return err
-}
-
-func verifyPartialSupport(url string) (bool, error) {
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return false, err
-	}
-	req.Header.Set("Range", "bytes=0-1")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusPartialContent, nil
 }
 
 func calculateWorkers(size int) int {
