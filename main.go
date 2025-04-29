@@ -43,7 +43,7 @@ func main() {
 
 func downloadCmd(args []string) {
 	if len(args) < 1 {
-		fmt.Println("Usage: downloader download <url> [--output file] [--workers n]")
+		fmt.Println("Usage: downloader download <url> [--output file] [--worker n]")
 		os.Exit(1)
 	}
 
