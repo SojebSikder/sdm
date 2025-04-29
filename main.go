@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,6 +59,12 @@ func downloadCmd(args []string) {
 	output := fs.String("output", defaultFileName, "specify output location")
 	workersFlag := fs.Int("worker", 0, "override number of workers")
 	fs.Parse(args[1:])
+
+	if *output != "" {
+		*output = filepath.Clean(*output + "\\" + defaultFileName)
+	}
+
+	fmt.Println(*output)
 
 	startTime := time.Now() // capture start time
 
