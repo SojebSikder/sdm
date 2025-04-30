@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -42,6 +43,7 @@ func main() {
 	}
 }
 
+// download command
 func downloadCmd(args []string) {
 	if len(args) < 1 {
 		fmt.Println("Usage: sdm download <url> [--output file] [--worker n]")
@@ -49,21 +51,22 @@ func downloadCmd(args []string) {
 	}
 
 	url := args[0]
-	urlParts := strings.Split(url, "/")
-	defaultFileName := urlParts[len(urlParts)-1]
+	defaultFileName := getFileNameFromURL(url)
 
 	fs := flag.NewFlagSet("download", flag.ExitOnError)
 	output := fs.String("output", defaultFileName, "specify output location")
 	workersFlag := fs.Int("worker", 0, "override number of workers")
 	fs.Parse(args[1:])
 
-	if *output != "" {
-		*output = filepath.Clean(*output + "\\" + defaultFileName)
+	// If output is a directory, append filename
+	fi, err := os.Stat(*output)
+	if err == nil && fi.IsDir() {
+		*output = filepath.Join(*output, defaultFileName)
 	}
 
 	startTime := time.Now()
 
-	err := downloadFile(url, *output, *workersFlag)
+	err = downloadFile(url, *output, *workersFlag)
 	if err != nil {
 		fmt.Println("\nDownload failed:", err)
 		os.Exit(1)
@@ -84,6 +87,7 @@ func downloadCmd(args []string) {
 	}
 }
 
+// download file
 func downloadFile(url, output string, workersOverride int) error {
 	client := &http.Client{}
 
@@ -180,6 +184,7 @@ func downloadFile(url, output string, workersOverride int) error {
 	return nil
 }
 
+// download part of the file
 func downloadPart(client *http.Client, url, output string, start, end int) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -230,6 +235,7 @@ func downloadPart(client *http.Client, url, output string, start, end int) error
 	return nil
 }
 
+// single download if server does not support partial content
 func singleDownload(url, output string) error {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -261,6 +267,7 @@ func singleDownload(url, output string) error {
 	return err
 }
 
+// calculate workers based on file size
 func calculateWorkers(size int) int {
 	const (
 		MB = 1024 * 1024
@@ -279,6 +286,7 @@ func calculateWorkers(size int) int {
 	}
 }
 
+// format speed as MB/s, KB/s, B/s
 func formatSpeed(bps float64) string {
 	const (
 		KB = 1024
@@ -296,4 +304,20 @@ func formatSpeed(bps float64) string {
 	default:
 		return fmt.Sprintf("%.2f B", bps)
 	}
+}
+
+func getFileNameFromURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "downloaded_file"
+	}
+
+	// Try to extract from content-disposition-like param
+	if name := u.Query().Get("filename"); name != "" {
+		return name
+	}
+
+	// Fallback to path basename without query
+	base := filepath.Base(u.Path)
+	return base
 }
