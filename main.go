@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sojebsikder/go-idm/internal/downloader"
 	"sojebsikder/go-idm/internal/progress"
+	"syscall"
 	"time"
 )
 
@@ -50,25 +54,42 @@ func downloadCmd(args []string) {
 		*output = filepath.Join(*output, defaultFileName)
 	}
 
+	// Create context that cancels on SIGINT or SIGTERM
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	startTime := time.Now()
 
-	err = downloader.DownloadFile(bar, url, *output, *workersFlag)
+	// Start download
+	err = downloader.DownloadFile(downloader.DownloadFileOption{
+		Ctx:             ctx,
+		Bar:             bar,
+		Url:             url,
+		Output:          *output,
+		WorkersOverride: *workersFlag,
+	})
+
+	// Handle result
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			fmt.Println("\nDownload canceled by user.")
+			os.Exit(0)
+		}
 		fmt.Println("\nDownload failed:", err)
 		os.Exit(1)
-	} else {
-		elapsed := time.Since(startTime)
-
-		info, err := os.Stat(*output)
-		if err != nil {
-			fmt.Println("Error getting downloaded file size:", err)
-			return
-		}
-		size := info.Size()
-		speed := float64(size) / elapsed.Seconds()
-
-		fmt.Println("\nDownload completed successfully!")
-		fmt.Printf("Downloaded in: %s\n", elapsed.Round(time.Millisecond))
-		fmt.Printf("Average speed: %s/s\n", downloader.FormatSpeed(speed))
 	}
+
+	elapsed := time.Since(startTime)
+	info, err := os.Stat(*output)
+	if err != nil {
+		fmt.Println("Error getting downloaded file size:", err)
+		return
+	}
+
+	size := info.Size()
+	speed := float64(size) / elapsed.Seconds()
+
+	fmt.Println("\n✅ Download completed successfully!")
+	fmt.Printf("Downloaded in: %s\n", elapsed.Round(time.Millisecond))
+	fmt.Printf("Average speed: %s/s\n", downloader.FormatSpeed(speed))
 }
