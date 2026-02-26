@@ -1,6 +1,6 @@
 # Description
 
-Fast Internet download manager created using Go.
+Fast Internet download manager created using Go. Supports Windows, Linux, and macOS.
 
 It downloads faster by downloading chunks parallelly
 
@@ -10,13 +10,13 @@ It downloads faster by downloading chunks parallelly
 
 # Build
 
-```
+```bash
 ./build.sh
 ```
 
 # Usage
 
-```
+```bash
 sdm download "https://example.com/file.zip" --output myfolder --worker 8 --cookie "sessionid=12345; user=sojeb"
 ```
 
@@ -26,6 +26,8 @@ sdm download "https://example.com/file.zip" --output myfolder --worker 8 --cooki
   - (optional) support `--output` flag that used to specify the output location
   - (optional) `--worker` flag to override the worker count
   - (optional) `--cookie` flag to set cookies
+  - (optional) `--header` flag to set custom headers (can be multiple)
+  - (optional) `--user-agent` flag to set custom user agent
 
 # Features:
 
