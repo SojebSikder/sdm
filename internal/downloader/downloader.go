@@ -26,7 +26,10 @@ type DownloadFileOption struct {
 	Url             string
 	Output          string
 	WorkersOverride int
-	Cookies         string
+	// cookies, headers etc...
+	Cookies   string
+	Headers   []string
+	UserAgent string
 }
 
 func DownloadFile(opt DownloadFileOption) error {
@@ -45,6 +48,19 @@ func DownloadFile(opt DownloadFileOption) error {
 	if opt.Cookies != "" {
 		req.Header.Set("Cookie", opt.Cookies)
 	}
+	// parse headers
+	for _, h := range opt.Headers {
+		headerParts := strings.SplitN(h, ":", 2)
+		if len(headerParts) == 2 {
+			// set header key and value
+			req.Header.Set(strings.TrimSpace(headerParts[0]), strings.TrimSpace(headerParts[1]))
+		} else {
+			return fmt.Errorf("invalid header format")
+		}
+	}
+	if opt.UserAgent != "" {
+		req.Header.Set("User-Agent", opt.UserAgent)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -56,10 +72,12 @@ func DownloadFile(opt DownloadFileOption) error {
 	if resp.StatusCode != http.StatusPartialContent {
 		fmt.Println("Server does not support partial downloads, using single-thread mode...")
 		return SingleDownload(SingleDownloadFileOption{
-			bar:     opt.Bar,
-			url:     opt.Url,
-			output:  opt.Output,
-			cookies: opt.Cookies,
+			Bar:       opt.Bar,
+			Url:       opt.Url,
+			Output:    opt.Output,
+			Cookies:   opt.Cookies,
+			Headers:   opt.Headers,
+			UserAgent: opt.UserAgent,
 		})
 	}
 
@@ -171,21 +189,35 @@ func DownloadFile(opt DownloadFileOption) error {
 }
 
 type SingleDownloadFileOption struct {
-	bar     *progress.Bar
-	url     string
-	output  string
-	cookies string
+	Bar       *progress.Bar
+	Url       string
+	Output    string
+	Cookies   string
+	Headers   []string
+	UserAgent string
 }
 
 // Single-threaded fallback
 func SingleDownload(opt SingleDownloadFileOption) error {
-	req, err := http.NewRequest("GET", opt.url, nil)
+	req, err := http.NewRequest("GET", opt.Url, nil)
 	if err != nil {
 		return err
 	}
 
-	if opt.cookies != "" {
-		req.Header.Set("Cookie", opt.cookies)
+	if opt.Cookies != "" {
+		req.Header.Set("Cookie", opt.Cookies)
+	}
+	for _, h := range opt.Headers {
+		headerParts := strings.SplitN(h, ":", 2)
+		if len(headerParts) == 2 {
+			// set header key and value
+			req.Header.Set(strings.TrimSpace(headerParts[0]), strings.TrimSpace(headerParts[1]))
+		} else {
+			return fmt.Errorf("invalid header format")
+		}
+	}
+	if opt.UserAgent != "" {
+		req.Header.Set("User-Agent", opt.UserAgent)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -198,15 +230,15 @@ func SingleDownload(opt SingleDownloadFileOption) error {
 		return fmt.Errorf("server returned status code %d", resp.StatusCode)
 	}
 
-	file, err := os.Create(opt.output)
+	file, err := os.Create(opt.Output)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	opt.bar.Start64(resp.ContentLength)
-	defer opt.bar.Finish()
+	opt.Bar.Start64(resp.ContentLength)
+	defer opt.Bar.Finish()
 
-	_, err = io.Copy(io.MultiWriter(file, opt.bar.GetProgressbar()), resp.Body)
+	_, err = io.Copy(io.MultiWriter(file, opt.Bar.GetProgressbar()), resp.Body)
 	return err
 }
