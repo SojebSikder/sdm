@@ -17,7 +17,7 @@ It downloads faster by downloading chunks parallelly
 # Usage
 
 ```
-sdm download "https://example.com/file.zip" --output myfolder --worker 8
+sdm download "https://example.com/file.zip" --output myfolder --worker 8 --cookie "sessionid=12345; user=sojeb"
 ```
 
 # Supported commands
@@ -25,6 +25,7 @@ sdm download "https://example.com/file.zip" --output myfolder --worker 8
 - `download` - for downloading file
   - (optional) support `--output` flag that used to specify the output location
   - (optional) `--worker` flag to override the worker count
+  - (optional) `--cookie` flag to set cookies
 
 # Features:
 

@@ -26,6 +26,7 @@ type DownloadFileOption struct {
 	Url             string
 	Output          string
 	WorkersOverride int
+	Cookies         string
 }
 
 func DownloadFile(opt DownloadFileOption) error {
@@ -41,6 +42,9 @@ func DownloadFile(opt DownloadFileOption) error {
 		return err
 	}
 	req.Header.Set("Range", "bytes=0-0")
+	if opt.Cookies != "" {
+		req.Header.Set("Cookie", opt.Cookies)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -51,7 +55,12 @@ func DownloadFile(opt DownloadFileOption) error {
 	// If server doesn't support range requests
 	if resp.StatusCode != http.StatusPartialContent {
 		fmt.Println("Server does not support partial downloads, using single-thread mode...")
-		return SingleDownload(opt.Bar, opt.Url, opt.Output)
+		return SingleDownload(SingleDownloadFileOption{
+			bar:     opt.Bar,
+			url:     opt.Url,
+			output:  opt.Output,
+			cookies: opt.Cookies,
+		})
 	}
 
 	contentRange := resp.Header.Get("Content-Range")
@@ -112,13 +121,14 @@ func DownloadFile(opt DownloadFileOption) error {
 				}
 
 				err := DownloadPart(DownloadPartOption{
-					Ctx:    opt.Ctx,
-					Client: client,
-					Bar:    opt.Bar,
-					Url:    opt.Url,
-					Output: opt.Output,
-					Start:  start,
-					End:    end,
+					Ctx:     opt.Ctx,
+					Client:  client,
+					Bar:     opt.Bar,
+					Url:     opt.Url,
+					Output:  opt.Output,
+					Start:   start,
+					End:     end,
+					Cookies: opt.Cookies,
 				})
 
 				if err == nil {
@@ -160,11 +170,22 @@ func DownloadFile(opt DownloadFileOption) error {
 	return nil
 }
 
+type SingleDownloadFileOption struct {
+	bar     *progress.Bar
+	url     string
+	output  string
+	cookies string
+}
+
 // Single-threaded fallback
-func SingleDownload(bar *progress.Bar, url, output string) error {
-	req, err := http.NewRequest("GET", url, nil)
+func SingleDownload(opt SingleDownloadFileOption) error {
+	req, err := http.NewRequest("GET", opt.url, nil)
 	if err != nil {
 		return err
+	}
+
+	if opt.cookies != "" {
+		req.Header.Set("Cookie", opt.cookies)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -177,15 +198,15 @@ func SingleDownload(bar *progress.Bar, url, output string) error {
 		return fmt.Errorf("server returned status code %d", resp.StatusCode)
 	}
 
-	file, err := os.Create(output)
+	file, err := os.Create(opt.output)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	bar.Start64(resp.ContentLength)
-	defer bar.Finish()
+	opt.bar.Start64(resp.ContentLength)
+	defer opt.bar.Finish()
 
-	_, err = io.Copy(io.MultiWriter(file, bar.GetProgressbar()), resp.Body)
+	_, err = io.Copy(io.MultiWriter(file, opt.bar.GetProgressbar()), resp.Body)
 	return err
 }

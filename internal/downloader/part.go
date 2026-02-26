@@ -10,13 +10,14 @@ import (
 )
 
 type DownloadPartOption struct {
-	Ctx    context.Context
-	Client *http.Client
-	Bar    *progress.Bar
-	Url    string
-	Output string
-	Start  int
-	End    int
+	Ctx     context.Context
+	Client  *http.Client
+	Bar     *progress.Bar
+	Url     string
+	Output  string
+	Start   int
+	End     int
+	Cookies string
 }
 
 func DownloadPart(opt DownloadPartOption) error {
@@ -31,6 +32,10 @@ func DownloadPart(opt DownloadPartOption) error {
 		return err
 	}
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", opt.Start, opt.End))
+
+	if opt.Cookies != "" {
+		req.Header.Set("Cookie", opt.Cookies)
+	}
 
 	resp, err := opt.Client.Do(req)
 	if err != nil {

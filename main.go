@@ -47,6 +47,7 @@ func downloadCmd(args []string) {
 	fs := flag.NewFlagSet("download", flag.ExitOnError)
 	output := fs.String("output", defaultFileName, "specify output location")
 	workersFlag := fs.Int("worker", 0, "override number of workers")
+	cookies := fs.String("cookie", "", "HTTP cookie string")
 	fs.Parse(args[1:])
 
 	fi, err := os.Stat(*output)
@@ -67,6 +68,7 @@ func downloadCmd(args []string) {
 		Url:             url,
 		Output:          *output,
 		WorkersOverride: *workersFlag,
+		Cookies:         *cookies,
 	})
 
 	// Handle result
