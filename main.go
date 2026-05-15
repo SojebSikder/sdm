@@ -121,6 +121,7 @@ func downloadCmd(args []string) {
 	speed := float64(size) / elapsed.Seconds()
 
 	fmt.Println("\n✅ Download completed successfully!")
+	fmt.Printf("File size: %s\n", downloader.FormatSpeed(float64(size)))
 	fmt.Printf("Downloaded in: %s\n", elapsed.Round(time.Millisecond))
 	fmt.Printf("Average speed: %s/s\n", downloader.FormatSpeed(speed))
 }

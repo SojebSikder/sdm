@@ -18,6 +18,7 @@ type DownloadPartOption struct {
 	Start   int
 	End     int
 	Cookies string
+	BufSize *int
 }
 
 func DownloadPart(opt DownloadPartOption) error {
@@ -57,7 +58,13 @@ func DownloadPart(opt DownloadPartOption) error {
 		return err
 	}
 
-	buf := make([]byte, 32*1024)
+	size := opt.BufSize
+	if size == nil {
+		size = new(int)
+		*size = 128 * 1024
+	}
+
+	buf := make([]byte, *size)
 	for {
 		select {
 		case <-opt.Ctx.Done():
