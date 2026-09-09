@@ -160,7 +160,7 @@ func DownloadFile(opt DownloadFileOption) error {
 					return
 				}
 
-				backoff := retryBackoff * time.Duration(1<<retries)
+				backoff := retryBackoff * time.Duration(1<<retries) // 1<<retries = 2^retries
 				jitter := time.Duration(rand.Intn(1000)) * time.Millisecond
 				time.Sleep(backoff + jitter)
 			}
